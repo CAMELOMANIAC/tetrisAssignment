@@ -21,6 +21,15 @@ const block = [
     ],
   },
   {
+    name: "S",
+    shape: [
+      [0, 0],
+      [0, 1],
+      [1, 0],
+      [1, 1],
+    ],
+  },
+  {
     name: "I",
     shape: [
       [0, 0],
@@ -36,6 +45,15 @@ const block = [
       [0, 1],
       [0, 2],
       [1, 2],
+    ],
+  },
+  {
+    name: "J",
+    shape: [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [1, 0],
     ],
   },
   {
@@ -57,23 +75,25 @@ const block = [
     ],
   },
 ];
+const color = ["red", "orange", "yellow", "green", "blue", "cyan", "purple"];
+
 const CELL_WIDTH = 20;
 const CELL_HEIGHT = 20;
-const STAGE_WIDTH = 13;
-const STAGE_HEIGHT = 20;
-const stageArray = [];
+const FIELD_WIDTH = 13;
+const FIELD_HEIGHT = 20;
+const FieldArray = [];
 const pointerArray = [];
-const pointer = { x: 6, y: 0 };
-const currentBlock = block[0];
+const pointer = { x: 6, y: 3 };
+let currentBlock = block[Math.floor(Math.random() * block.length)];
 let blockDirectionIndex = 0;
-const score = 0;
+let score = 0;
 
-for (let i = 0; i < STAGE_HEIGHT; i++) {
-  stageArray[i] = [];
+for (let i = 0; i < FIELD_HEIGHT; i++) {
+  FieldArray[i] = [];
   pointerArray[i] = [];
-  for (let j = 0; j < STAGE_WIDTH; j++) {
-    stageArray[i][j] = 0;
-    pointerArray[i][j] = 0;
+  for (let j = 0; j < FIELD_WIDTH; j++) {
+    FieldArray[i][j] = false;
+    pointerArray[i][j] = false;
   }
 }
 
@@ -94,31 +114,37 @@ const rotate = (coordinate, direction) => {
 const canvas = document.getElementById("stage");
 const ctx = canvas.getContext("2d");
 
-//포인터
+//포인터 그리기
 const drawPointer = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (let i = 0; i < STAGE_HEIGHT; i++) {
-    pointerArray[i].fill(0);
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    pointerArray[i].fill(-1);
   }
-  ctx.fillRect(pointer.x * CELL_WIDTH, pointer.y * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT); //커서 위치 확인용
   currentBlock.shape
     .map((shape) => rotate(shape, blockDirectionIndex))
     .forEach((element) => {
-      pointerArray[pointer.y + element[1]][pointer.x + element[0]] = 1;
+      pointerArray[pointer.y + element[1]][pointer.x + element[0]] =
+        block.findIndex((block) => block.name === currentBlock.name) + 1;
     });
-  for (let i = 0; i < STAGE_HEIGHT; i++) {
-    for (let j = 0; j < STAGE_WIDTH; j++) {
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    for (let j = 0; j < FIELD_WIDTH; j++) {
       if (pointerArray[i][j] > 0) {
+        ctx.fillStyle = color[pointerArray[i][j] - 1];
+        ctx.fillRect(j * CELL_WIDTH, i * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
+        ctx.strokeStyle = "black";
         ctx.strokeRect(j * CELL_WIDTH, i * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
       }
     }
   }
 };
-//스테이지
-const drawStage = () => {
-  for (let i = 0; i < STAGE_HEIGHT; i++) {
-    for (let j = 0; j < STAGE_WIDTH; j++) {
-      if (stageArray[i][j] > 0) {
+//필드 그리기
+const drawField = () => {
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    for (let j = 0; j < FIELD_WIDTH; j++) {
+      if (FieldArray[i][j] > 0) {
+        ctx.fillStyle = color[FieldArray[i][j] - 1];
+        ctx.fillRect(j * CELL_WIDTH, i * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
+        ctx.strokeStyle = "black";
         ctx.strokeRect(j * CELL_WIDTH, i * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
       }
     }
@@ -127,74 +153,108 @@ const drawStage = () => {
 
 const drawScene = () => {
   drawPointer();
-  drawStage();
+  drawField();
 };
 
-const up = document.getElementById("up");
-up.addEventListener("click", () => {
+const upButton = document.getElementById("up");
+const upButtonHandler = () => {
   blockDirectionIndex = (blockDirectionIndex + 1) % 4;
   console.log(blockDirectionIndex);
   drawScene();
   checkCollision();
+};
+upButton.addEventListener("click", upButtonHandler);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowUp") {
+    upButtonHandler();
+  }
 });
-const down = document.getElementById("down");
-down.addEventListener("click", () => {
-  if (pointer.y < STAGE_HEIGHT - 1) {
+
+const downButton = document.getElementById("down");
+const downButtonHandler = () => {
+  if (pointer.y < FIELD_HEIGHT - 1) {
     pointer.y += 1;
   }
   drawScene();
   checkCollision();
+};
+downButton.addEventListener("click", () => {
+  downButtonHandler();
 });
-const left = document.getElementById("left");
-left.addEventListener("click", () => {
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") {
+    downButtonHandler();
+  }
+});
+
+const leftButton = document.getElementById("left");
+const leftButtonHandler = () => {
   if (pointer.x > 0 && checkMovable("left")) {
     pointer.x -= 1;
   }
   drawScene();
   checkCollision();
+};
+leftButton.addEventListener("click", () => {
+  leftButtonHandler();
 });
-const right = document.getElementById("right");
-right.addEventListener("click", () => {
-  if (pointer.x < STAGE_WIDTH - 1 && checkMovable("right")) {
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft") {
+    leftButtonHandler();
+  }
+});
+
+const rightButton = document.getElementById("right");
+const rightButtonHandler = () => {
+  if (pointer.x < FIELD_WIDTH - 1 && checkMovable("right")) {
     pointer.x += 1;
   }
   drawScene();
   checkCollision();
+};
+rightButton.addEventListener("click", () => {
+  rightButtonHandler();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") {
+    rightButtonHandler();
+  }
 });
 
-const saveStage = () => {
-  for (let i = 0; i < STAGE_HEIGHT; i++) {
-    for (let j = 0; j < STAGE_WIDTH; j++) {
+const saveField = () => {
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    for (let j = 0; j < FIELD_WIDTH; j++) {
       if (pointerArray[i][j] > 0) {
-        stageArray[i][j] = 1;
+        FieldArray[i][j] = block.findIndex((block) => block.name === currentBlock.name) + 1;
       }
     }
   }
-  console.log(stageArray);
-  drawStage();
+  console.log(FieldArray);
+  drawField();
 };
 
 const pointerReset = () => {
   pointer.x = 6;
-  pointer.y = 0;
+  pointer.y = 3;
+  currentBlock = block[Math.floor(Math.random() * block.length)];
   drawPointer();
 };
 
 const checkCollision = () => {
-  for (let i = 0; i < STAGE_HEIGHT; i++) {
-    for (let j = 0; j < STAGE_WIDTH; j++) {
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    for (let j = 0; j < FIELD_WIDTH; j++) {
       //바닥에 닿았을경우
-      if (pointerArray[STAGE_HEIGHT - 1][j] > 0) {
+      if (pointerArray[FIELD_HEIGHT - 1][j] > 0) {
         console.log("바닥에 닿음");
-        saveStage();
+        saveField();
         pointerReset();
         drawScene();
         return;
       }
       //스테이지 바닥에 닿았을경우
-      if (stageArray[i][j] > 0 && pointerArray[i - 1][j] > 0) {
+      if (FieldArray[i][j] > 0 && pointerArray[i - 1][j] > 0) {
         console.log("스테이지에 닿음");
-        saveStage();
+        saveField();
         pointerReset();
         drawScene();
         return;
@@ -204,18 +264,18 @@ const checkCollision = () => {
 };
 
 const checkMovable = (direction) => {
-  for (let i = 0; i < STAGE_HEIGHT; i++) {
-    for (let j = 0; j < STAGE_WIDTH; j++) {
-      if (stageArray[i][j - 1] > 0 && pointerArray[i][j] > 0 && direction === "left") {
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    for (let j = 0; j < FIELD_WIDTH; j++) {
+      if (FieldArray[i][j - 1] > 0 && pointerArray[i][j] > 0 && direction === "left") {
         return false;
       }
-      if (stageArray[i][j + 1] > 0 && pointerArray[i][j] > 0 && direction === "right") {
+      if (FieldArray[i][j + 1] > 0 && pointerArray[i][j] > 0 && direction === "right") {
         return false;
       }
-      if (pointerArray[i][j] > 0 && direction === "right" && j === STAGE_WIDTH - 1) {
+      if (pointerArray[i][j] > 0 && direction === "right" && j === FIELD_WIDTH - 1) {
         return false;
       }
-      if (pointerArray[i][j] > 0 && direction === "left" && j === STAGE_WIDTH + 1) {
+      if (pointerArray[i][j] > 0 && direction === "left" && j === FIELD_WIDTH + 1) {
         return false;
       }
     }
