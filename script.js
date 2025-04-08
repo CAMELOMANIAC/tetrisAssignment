@@ -23,10 +23,10 @@ const block = [
   {
     name: "S",
     shape: [
-      [0, 0],
-      [0, 1],
+      [2, 0],
       [1, 0],
       [1, 1],
+      [0, 1],
     ],
   },
   {
@@ -81,19 +81,27 @@ const CELL_WIDTH = 20;
 const CELL_HEIGHT = 20;
 const FIELD_WIDTH = 13;
 const FIELD_HEIGHT = 20;
+
 const FieldArray = [];
 const pointerArray = [];
+const rotateBlockArray = [];
 const pointer = { x: 6, y: 3 };
-let currentBlock = block[Math.floor(Math.random() * block.length)];
+const randomBlockIndexGenerator = () => Math.floor(Math.random() * block.length);
+let hasFalling = false;
+
+let currentBlock = block[randomBlockIndexGenerator()];
+let nextBlock = block[randomBlockIndexGenerator()];
 let blockDirectionIndex = 0;
 let score = 0;
 
 for (let i = 0; i < FIELD_HEIGHT; i++) {
   FieldArray[i] = [];
   pointerArray[i] = [];
+  rotateBlockArray[i] = [];
   for (let j = 0; j < FIELD_WIDTH; j++) {
-    FieldArray[i][j] = false;
-    pointerArray[i][j] = false;
+    FieldArray[i][j] = -1;
+    pointerArray[i][j] = -1;
+    rotateBlockArray[i][j] = -1;
   }
 }
 
@@ -116,7 +124,6 @@ const ctx = canvas.getContext("2d");
 
 //포인터 그리기
 const drawPointer = () => {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let i = 0; i < FIELD_HEIGHT; i++) {
     pointerArray[i].fill(-1);
   }
@@ -150,18 +157,69 @@ const drawField = () => {
     }
   }
 };
+//다음 블럭 그리기
+const drawNextBlock = () => {
+  ctx.fillStyle = "white";
+  ctx.fillRect(10, 10, 100, 100);
+  ctx.strokeStyle = "black";
+  ctx.strokeRect(10, 10, 100, 100);
+  nextBlock.shape.forEach((element) => {
+    ctx.fillStyle = color[block.findIndex((block) => block.name === nextBlock.name)];
+    ctx.fillRect(20 + element[0] * CELL_WIDTH, 20 + element[1] * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
+    ctx.strokeStyle = "black";
+    ctx.strokeRect(20 + element[0] * CELL_WIDTH, 20 + element[1] * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
+  });
+};
+//점수 그리기
+const drawScore = () => {
+  ctx.fillStyle = "white";
+  ctx.fillRect(140, 10, 110, 30);
+  ctx.strokeStyle = "black";
+  ctx.strokeRect(140, 10, 110, 30);
+  ctx.fillStyle = "black";
+  ctx.font = "16px Arial";
+  ctx.fillText(`Score : ${score}`, 150, 30);
+};
+//회전 예상 블럭 위치 그리기(테스트용)
+const drawRotateBlock = () => {
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    rotateBlockArray[i].fill(-1);
+  }
+  currentBlock.shape
+    .map((shape) => rotate(shape, (blockDirectionIndex + 1) % 4))
+    .forEach((element) => {
+      rotateBlockArray[pointer.y + element[1]][pointer.x + element[0]] =
+        block.findIndex((block) => block.name === currentBlock.name) + 1;
+    });
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    for (let j = 0; j < FIELD_WIDTH; j++) {
+      if (rotateBlockArray[i][j] > 0) {
+        ctx.fillStyle = "white";
+        ctx.fillRect(j * CELL_WIDTH, i * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
+        ctx.strokeStyle = "black";
+        ctx.strokeRect(j * CELL_WIDTH, i * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
+      }
+    }
+  }
+};
 
-const drawScene = () => {
+const drawStage = () => {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  //drawRotateBlock();
   drawPointer();
   drawField();
+  drawNextBlock();
+  drawScore();
 };
 
 const upButton = document.getElementById("up");
 const upButtonHandler = () => {
-  blockDirectionIndex = (blockDirectionIndex + 1) % 4;
-  console.log(blockDirectionIndex);
-  drawScene();
-  checkCollision();
+  const isRotatable = checkRotatable();
+  if (isRotatable) {
+    blockDirectionIndex = (blockDirectionIndex + 1) % 4;
+    drawStage();
+    checkCollision();
+  }
 };
 upButton.addEventListener("click", upButtonHandler);
 document.addEventListener("keydown", (e) => {
@@ -169,15 +227,20 @@ document.addEventListener("keydown", (e) => {
     upButtonHandler();
   }
 });
-
-const downButton = document.getElementById("down");
-const downButtonHandler = () => {
+const falling = () => {
   if (pointer.y < FIELD_HEIGHT - 1) {
+    fallingTimer = requestAnimationFrame(falling);
     pointer.y += 1;
+    hasFalling = true;
+    drawStage();
+    checkCollision();
   }
-  drawScene();
-  checkCollision();
 };
+let fallingTimer;
+const downButtonHandler = () => {
+  fallingTimer = requestAnimationFrame(falling);
+};
+const downButton = document.getElementById("down");
 downButton.addEventListener("click", () => {
   downButtonHandler();
 });
@@ -189,10 +252,10 @@ document.addEventListener("keydown", (e) => {
 
 const leftButton = document.getElementById("left");
 const leftButtonHandler = () => {
-  if (pointer.x > 0 && checkMovable("left")) {
+  if (pointer.x > 0 && checkMovable("left") && !hasFalling) {
     pointer.x -= 1;
   }
-  drawScene();
+  drawStage();
   checkCollision();
 };
 leftButton.addEventListener("click", () => {
@@ -206,10 +269,10 @@ document.addEventListener("keydown", (e) => {
 
 const rightButton = document.getElementById("right");
 const rightButtonHandler = () => {
-  if (pointer.x < FIELD_WIDTH - 1 && checkMovable("right")) {
+  if (pointer.x < FIELD_WIDTH - 1 && checkMovable("right") && !hasFalling) {
     pointer.x += 1;
   }
-  drawScene();
+  drawStage();
   checkCollision();
 };
 rightButton.addEventListener("click", () => {
@@ -229,15 +292,31 @@ const saveField = () => {
       }
     }
   }
-  console.log(FieldArray);
   drawField();
 };
 
 const pointerReset = () => {
   pointer.x = 6;
   pointer.y = 3;
-  currentBlock = block[Math.floor(Math.random() * block.length)];
+  currentBlock = nextBlock;
+  nextBlock = block[randomBlockIndexGenerator()];
   drawPointer();
+};
+
+const removeLine = () => {
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    let count = 0;
+    for (let j = 0; j < FIELD_WIDTH; j++) {
+      if (FieldArray[i][j] > 0) {
+        count += 1;
+      }
+      if (count === FIELD_WIDTH) {
+        FieldArray.pop();
+        FieldArray.unshift([...Array(FIELD_WIDTH)].map(() => -1));
+        score += 1000;
+      }
+    }
+  }
 };
 
 const checkCollision = () => {
@@ -245,18 +324,22 @@ const checkCollision = () => {
     for (let j = 0; j < FIELD_WIDTH; j++) {
       //바닥에 닿았을경우
       if (pointerArray[FIELD_HEIGHT - 1][j] > 0) {
-        console.log("바닥에 닿음");
         saveField();
+        removeLine();
         pointerReset();
-        drawScene();
+        drawStage();
+        hasFalling = false;
+        cancelAnimationFrame(fallingTimer);
         return;
       }
       //스테이지 바닥에 닿았을경우
       if (FieldArray[i][j] > 0 && pointerArray[i - 1][j] > 0) {
-        console.log("스테이지에 닿음");
         saveField();
+        removeLine();
         pointerReset();
-        drawScene();
+        drawStage();
+        hasFalling = false;
+        cancelAnimationFrame(fallingTimer);
         return;
       }
     }
@@ -275,7 +358,7 @@ const checkMovable = (direction) => {
       if (pointerArray[i][j] > 0 && direction === "right" && j === FIELD_WIDTH - 1) {
         return false;
       }
-      if (pointerArray[i][j] > 0 && direction === "left" && j === FIELD_WIDTH + 1) {
+      if (pointerArray[i][j] > 0 && direction === "left" && j === 0) {
         return false;
       }
     }
@@ -283,4 +366,38 @@ const checkMovable = (direction) => {
   return true;
 };
 
-drawPointer();
+const checkRotatable = () => {
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    rotateBlockArray[i].fill(-1);
+  }
+  currentBlock.shape
+    .map((shape) => rotate(shape, (blockDirectionIndex + 1) % 4))
+    .forEach((element) => {
+      rotateBlockArray[pointer.y + element[1]][pointer.x + element[0]] =
+        block.findIndex((block) => block.name === currentBlock.name) + 1;
+    });
+  let count = 0;
+  for (let i = 0; i < FIELD_HEIGHT; i++) {
+    for (let j = 0; j < FIELD_WIDTH; j++) {
+      //예상위치가 필드 블럭에 닿는지 체크
+      if (rotateBlockArray[i][j] > 0 && FieldArray[i][j] > 0) {
+        return false;
+      }
+      //예상위치가 스테이지 좌,우측에 닿는지 체크
+      if ((rotateBlockArray[i][j] > 0 && j > FIELD_WIDTH + 1) || j < 0) {
+        return false;
+      }
+      //블럭 예상위치에 자리가 있는지 체크
+      if (rotateBlockArray[i][j] > 0) {
+        count += 1;
+      }
+    }
+  }
+  if (count < 4) {
+    count = 0;
+    return false;
+  }
+  return true;
+};
+
+drawStage();
